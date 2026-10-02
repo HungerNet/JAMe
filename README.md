@@ -50,6 +50,8 @@ to require five characters, not `hcr{*****}`.
 Other available methods:
 
 ```bash
+./jame.sh update
+./jame.sh update --pre
 ./jame.sh find-flag tests/files/challenge.txt --format 'hcr{*4}'
 ./jame.sh scan tests/files/scan.txt
 ./jame.sh crypto tests/files/strings.txt --verbose

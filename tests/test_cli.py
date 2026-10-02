@@ -2,7 +2,9 @@
 
 import json
 import sys
+from types import SimpleNamespace
 
+from jame.cli import jame_cli
 from jame.cli.jame_cli import main
 
 
@@ -55,3 +57,19 @@ def test_cli_supports_caesar_method(monkeypatch, capsys):
 
     result = json.loads(output)
     assert result == {'shift': 3, 'decoded': 'Hello'}
+
+
+def test_cli_update_pre_requests_prereleases(monkeypatch, capsys):
+    '''Pass --pre through to pip when updating JAMe and C2E.'''
+    calls = []
+
+    def fake_run(arguments, check):
+        calls.append((arguments, check))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(jame_cli.subprocess, 'run', fake_run)
+    run_cli(monkeypatch, capsys, 'update', '--pre')
+
+    arguments, check = calls[0]
+    assert arguments[-4:] == ['--upgrade', '--pre', 'c2e', 'jame']
+    assert check is False

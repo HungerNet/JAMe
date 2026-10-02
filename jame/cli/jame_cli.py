@@ -1,150 +1,177 @@
 '''Command-line entry point for JAMe.'''
 
-import argparse
 import json
+import subprocess
 import sys
+
+from c2e import LiveCLI, command
 
 from jame import Jame
 
 
-_COMMANDS = {
-    'archive',
-    'binary',
-    'binwalk',
-    'caesar',
-    'crypto',
-    'file-type',
-    'find-flag',
-    'forensics',
-    'scan',
-    'solve',
-    'stego',
-    'strings',
-}
-
-
-def _add_path_arguments(command: argparse.ArgumentParser) -> None:
-    command.add_argument('path', help='Path to the file to analyze')
-    command.add_argument('--verbose', action='store_true', help='Print structured result details')
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog='jame',
-        description='Just Another Method of Exploitation',
-    )
-    subparsers = parser.add_subparsers(dest='command', required=True)
-
-    solve = subparsers.add_parser('solve', help='Find a flag and extract supported archives')
-    _add_path_arguments(solve)
-    solve.add_argument(
-        '--format',
-        default='flag{*}',
-        help="Flag pattern; '*' matches any length and '*N' matches exactly N characters",
-    )
-    solve.add_argument('--max-depth', type=int, default=3, help='Archive extraction depth')
-
-    find_flag = subparsers.add_parser('find-flag', help='Find a flag matching a pattern')
-    _add_path_arguments(find_flag)
-    find_flag.add_argument(
-        '--format',
-        default='flag{*}',
-        help="Flag pattern; '*' matches any length and '*N' matches exactly N characters",
-    )
-
-    for name, description in (
-        ('scan', 'Run all available analyzers'),
-        ('crypto', 'Analyze crypto indicators'),
-        ('binary', 'Analyze binary indicators'),
-        ('stego', 'Check for steganography indicators'),
-        ('forensics', 'Run forensic checks'),
-        ('file-type', 'Detect the file type'),
-        ('strings', 'Extract printable strings'),
-        ('binwalk', 'Run binwalk when installed'),
-    ):
-        command = subparsers.add_parser(name, help=description)
-        _add_path_arguments(command)
-
-    archive = subparsers.add_parser('archive', help='Extract supported archives')
-    _add_path_arguments(archive)
-    archive.add_argument('--max-depth', type=int, default=3, help='Archive extraction depth')
-
-    caesar = subparsers.add_parser('caesar', help='Decode Caesar-shifted text')
-    caesar.add_argument('text', help='Text to decode')
-    caesar.add_argument('--shift', default='brute', help="Integer shift or 'brute'")
-    caesar.add_argument('--verbose', action='store_true', help='Print structured result details')
-
-    return parser
-
-
-def _print_result(result: object, verbose: bool) -> None:
-    if verbose:
+def _print_result(cli: LiveCLI, result: object, detailed: bool = False) -> None:
+    if detailed:
         to_dict = getattr(result, 'to_dict', None)
         output = to_dict() if callable(to_dict) else result
-        print(json.dumps(output, indent=2, default=str))
+        cli.safePrint(json.dumps(output, indent=2, default=str))
     elif hasattr(result, 'summary'):
-        print(result.summary)
+        cli.safePrint(result.summary)
     elif result is None:
-        print('No flag found.')
+        cli.safePrint('No flag found.')
     elif isinstance(result, list):
-        print('\n'.join(str(item) for item in result) if result else 'No results.')
+        cli.safePrint('\n'.join(str(item) for item in result) if result else 'No results.')
     elif isinstance(result, (dict, tuple)):
-        print(json.dumps(result, indent=2, default=str))
+        cli.safePrint(json.dumps(result, indent=2, default=str))
     else:
-        print(result)
+        cli.safePrint(result)
+
+
+@command('solve')
+def solve(cli: LiveCLI, path: str) -> None:
+    '''Find a flag and extract supported archives.'''
+    engine = Jame(flag_patterns=[format()], max_depth=max_depth(), verbose=verbose())
+    result = engine.autoSolve(
+        path,
+        format=format(),
+        maxDepth=max_depth(),
+        verbose=verbose(),
+    )
+    _print_result(cli, result, verbose())
+
+
+@solve.param('format', type=str, default='flag{*}')
+def _solve_format(value):
+    '''Flag pattern; '*' matches any length and '*N' matches exactly N characters.'''
+    return value
+
+
+@solve.param('max-depth', type=int, default=3)
+def _solve_max_depth(value):
+    '''Maximum recursive archive extraction depth.'''
+    return value
+
+
+@solve.flag('verbose')
+def _solve_verbose(value):
+    '''Print structured result details.'''
+    return value
+
+
+@command('find-flag')
+def find_flag(cli: LiveCLI, path: str) -> None:
+    '''Find a flag matching a wildcard pattern.'''
+    result = Jame().findFlag(path, format())
+    _print_result(cli, result, verbose())
+
+
+@find_flag.param('format', type=str, default='flag{*}')
+def _find_flag_format(value):
+    '''Flag pattern; '*' matches any length and '*N' matches exactly N characters.'''
+    return value
+
+
+@find_flag.flag('verbose')
+def _find_flag_verbose(value):
+    '''Print structured result details.'''
+    return value
+
+
+def _register_path_command(name: str, method_name: str, description: str) -> None:
+    @command(name)
+    def handler(cli: LiveCLI, path: str) -> None:
+        result = getattr(Jame(), method_name)(path)
+        _print_result(cli, result, verbose())
+
+    handler.func.__doc__ = description
+    handler.desc = description
+    def verbose_flag(value):
+        '''Print structured result details.'''
+        return value
+
+    handler.flag('verbose')(verbose_flag)
+
+
+_register_path_command('scan', 'scanFile', 'Run all available analyzers.')
+_register_path_command('crypto', 'cryptoAnalyze', 'Analyze crypto indicators.')
+_register_path_command('binary', 'binaryAnalyze', 'Analyze binary indicators.')
+_register_path_command('stego', 'stegoAnalyze', 'Check for steganography indicators.')
+_register_path_command('forensics', 'forensicsAnalyze', 'Run forensic checks.')
+_register_path_command('file-type', 'getFileType', 'Detect the file type.')
+_register_path_command('strings', 'runStrings', 'Extract printable strings.')
+_register_path_command('binwalk', 'runBinwalk', 'Run binwalk when installed.')
+
+
+@command('archive')
+def archive(cli: LiveCLI, path: str) -> None:
+    '''Extract supported archives.'''
+    engine = Jame(max_depth=max_depth(), verbose=verbose())
+    _print_result(cli, engine.archiveExtract(path), verbose())
+
+
+@archive.param('max-depth', type=int, default=3)
+def _archive_max_depth(value):
+    '''Maximum recursive archive extraction depth.'''
+    return value
+
+
+@archive.flag('verbose')
+def _archive_verbose(value):
+    '''Print structured result details.'''
+    return value
+
+
+@command('caesar')
+def caesar(cli: LiveCLI, text: str) -> None:
+    '''Decode Caesar-shifted text.'''
+    shift_value = shift()
+    if shift_value != 'brute':
+        try:
+            shift_value = int(shift_value)
+        except ValueError:
+            cli.safePrint("Error: --shift must be an integer or 'brute'")
+            raise SystemExit(2) from None
+    result = Jame().decodeCaesar(text, shift_value)
+    _print_result(cli, result, verbose())
+
+
+@caesar.param('shift', type=str, default='brute')
+def _caesar_shift(value):
+    '''Integer shift or 'brute' to check every Caesar shift.'''
+    return value
+
+
+@caesar.flag('verbose')
+def _caesar_verbose(value):
+    '''Print structured result details.'''
+    return value
+
+
+@command('update')
+def update(cli: LiveCLI) -> None:
+    '''Upgrade JAMe and its C2E CLI dependency.'''
+    cli.safePrint('Updating JAMe...')
+    command = [sys.executable, '-m', 'pip', 'install', '--upgrade']
+    if pre():
+        command.append('--pre')
+    command.extend(['c2e', 'jame'])
+    result = subprocess.run(command, check=False)
+    if result.returncode:
+        raise SystemExit(result.returncode)
+
+
+@update.flag('pre')
+def _update_pre(value):
+    '''Include pre-release versions when upgrading.'''
+    return value
 
 
 def main() -> None:
-    '''Parse command-line options and run the requested JAMe method.'''
-    argv = sys.argv[1:]
-    if argv and argv[0] not in _COMMANDS and argv[0] not in {'-h', '--help'}:
-        argv.insert(0, 'solve')
-
-    parser = _build_parser()
-    args = parser.parse_args(argv)
-    max_depth = getattr(args, 'max_depth', 3)
-    engine = Jame(
-        flag_patterns=[getattr(args, 'format', 'flag{*}')],
-        max_depth=max_depth,
-        verbose=args.verbose,
+    '''Parse command-line options and dispatch them through C2E.'''
+    LiveCLI().run_argv(
+        prog='jame',
+        description='Just Another Method of Exploitation',
+        default_command='solve',
     )
-
-    if args.command == 'solve':
-        result = engine.autoSolve(
-            args.path,
-            format=args.format,
-            maxDepth=args.max_depth,
-            verbose=args.verbose,
-        )
-    elif args.command == 'find-flag':
-        result = engine.findFlag(args.path, args.format)
-    elif args.command == 'scan':
-        result = engine.scanFile(args.path)
-    elif args.command == 'crypto':
-        result = engine.cryptoAnalyze(args.path)
-    elif args.command == 'binary':
-        result = engine.binaryAnalyze(args.path)
-    elif args.command == 'stego':
-        result = engine.stegoAnalyze(args.path)
-    elif args.command == 'forensics':
-        result = engine.forensicsAnalyze(args.path)
-    elif args.command == 'archive':
-        engine.setMaxDepth(args.max_depth)
-        result = engine.archiveExtract(args.path)
-    elif args.command == 'file-type':
-        result = engine.getFileType(args.path)
-    elif args.command == 'strings':
-        result = engine.runStrings(args.path)
-    elif args.command == 'binwalk':
-        result = engine.runBinwalk(args.path)
-    else:
-        try:
-            shift = 'brute' if args.shift == 'brute' else int(args.shift)
-        except ValueError:
-            parser.error("--shift must be an integer or 'brute'")
-        result = engine.decodeCaesar(args.text, shift)
-
-    _print_result(result, args.verbose)
 
 
 if __name__ == '__main__':
