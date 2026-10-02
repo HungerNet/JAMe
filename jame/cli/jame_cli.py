@@ -1,12 +1,26 @@
 '''Command-line entry point for JAMe.'''
 
 import json
+import os
 import subprocess
 import sys
 
 from c2e import LiveCLI, command
+from mapres import ascii_colors, rprint, res, setGlobalMaps
 
 from jame import Jame
+
+setGlobalMaps(ascii_colors)
+_COLOR_ENABLED = sys.stdout.isatty() and 'NO_COLOR' not in os.environ
+
+
+def _paint(text: object, color: str, *, bold: bool = False) -> str:
+    if not _COLOR_ENABLED:
+        return str(text)
+    style = res(f'<{color}>')
+    if bold:
+        style = res('<bold>') + style
+    return f'{style}{text}{res("<reset>")}'
 
 
 def _print_result(cli: LiveCLI, result: object, detailed: bool = False) -> None:
@@ -15,15 +29,22 @@ def _print_result(cli: LiveCLI, result: object, detailed: bool = False) -> None:
         output = to_dict() if callable(to_dict) else result
         cli.safePrint(json.dumps(output, indent=2, default=str))
     elif hasattr(result, 'summary'):
-        cli.safePrint(result.summary)
+        if hasattr(result, 'flag'):
+            color = 'green' if result.flag else 'yellow'
+        else:
+            color = 'green' if getattr(result, 'confidence', 0.0) >= 0.7 else 'aqua'
+        cli.safePrint(_paint(result.summary, color))
+        if getattr(result, 'flag', None):
+            cli.safePrint(_paint(result.flag, 'green', bold=True))
     elif result is None:
-        cli.safePrint('No flag found.')
+        cli.safePrint(_paint('No flag found.', 'yellow'))
     elif isinstance(result, list):
-        cli.safePrint('\n'.join(str(item) for item in result) if result else 'No results.')
+        output = '\n'.join(str(item) for item in result) if result else 'No results.'
+        cli.safePrint(_paint(output, 'blue'))
     elif isinstance(result, (dict, tuple)):
-        cli.safePrint(json.dumps(result, indent=2, default=str))
+        cli.safePrint(_paint(json.dumps(result, indent=2, default=str), 'blue'))
     else:
-        cli.safePrint(result)
+        cli.safePrint(_paint(result, 'aqua'))
 
 
 @command('solve')
@@ -131,7 +152,16 @@ def caesar(cli: LiveCLI, text: str) -> None:
             cli.safePrint("Error: --shift must be an integer or 'brute'")
             raise SystemExit(2) from None
     result = Jame().decodeCaesar(text, shift_value)
-    _print_result(cli, result, verbose())
+    if verbose():
+        _print_result(cli, result, detailed=True)
+    elif shift_value == 'brute':
+        best = result.get('best')
+        if best:
+            cli.safePrint(_paint(best['decoded'], 'green', bold=True))
+        else:
+            cli.safePrint(_paint('No Caesar candidate found.', 'yellow'))
+    else:
+        cli.safePrint(_paint(result.get('decoded', result.get('error', '')), 'green'))
 
 
 @caesar.param('shift', type=str, default='brute')
@@ -148,12 +178,14 @@ def _caesar_verbose(value):
 
 @command('update')
 def update(cli: LiveCLI) -> None:
-    '''Upgrade JAMe and its C2E CLI dependency.'''
-    cli.safePrint('Updating JAMe...')
+    '''Upgrade JAMe and C2E, optionally including the MapRes prerelease.'''
+    rprint(_paint('Updating JAMe...', 'aqua'))
     command = [sys.executable, '-m', 'pip', 'install', '--upgrade']
     if pre():
         command.append('--pre')
     command.extend(['c2e', 'jame'])
+    if pre():
+        command.append('mapres')
     result = subprocess.run(command, check=False)
     if result.returncode:
         raise SystemExit(result.returncode)

@@ -23,6 +23,7 @@ keywords = [
 ]
 dependencies = [
     "c2e",
+    "mapres",
     "PyYAML>=6.0",
 ]
 classifiers = [

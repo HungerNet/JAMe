@@ -16,31 +16,36 @@ JAMe is a lightweight forensic and triage toolkit for scanning files, extracting
 
 ## Installation
 
-JAMe requires Python 3.10 or newer. From the repository root, this one-line
-installer creates the virtual environment, installs JAMe, links the command
-into the absolute path `$HOME/.local/bin`, and adds that directory to the
-current shell and future Bash login/interactive shells:
+JAMe requires Python 3.10 or newer. Install the latest published package and
+register `jame` on your user PATH with:
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install jame && mkdir -p "$HOME/.local/bin" && if [[ -e "$HOME/.local/bin/jame" && ! "$HOME/.local/bin/jame" -ef "$(pwd -P)/.venv/bin/jame" ]]; then printf '%s\n' 'Refusing to replace existing command at ~/.local/bin/jame' >&2; exit 1; fi && ln -sfn "$(pwd -P)/.venv/bin/jame" "$HOME/.local/bin/jame" && for rc in "$HOME/.profile" "$HOME/.bashrc"; do grep -qxF 'export PATH="$HOME/.local/bin:$PATH"' "$rc" 2>/dev/null || printf '%s\n' 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc"; done && export PATH="$HOME/.local/bin:$PATH" && jame --help
+curl -fsSL https://raw.githubusercontent.com/HungerNet/JAMe/main/install.sh | bash
 ```
+
+The installer creates a dedicated environment under `$HOME/.local/share/jame`,
+installs the MapRes pre-release API, `jame`, and C2E, and links the command to
+`$HOME/.local/bin/jame`. It adds that directory to Bash or Zsh startup files;
+open a new shell if it was not already on your current PATH.
+
+Set `JAME_PYTHON` to select a specific Python 3.10+ executable. Set
+`JAME_INSTALL_DIR` or `JAME_BIN_DIR` to change the absolute install or bin path.
 
 ## CLI
 
-From a checkout, the Bash launcher can also be run directly; it uses the active
-virtual environment, the checkout's `.venv`, or `python3.10`, in that order:
+After installation, run the `jame` command from any directory:
 
 ```bash
-./jame.sh --help
-./jame.sh tests/files/solution.txt
+jame --help
+jame tests/files/solution.txt
 ```
 
-The default command finds a flag and extracts supported archives. The original
-path-only form remains supported:
+The default command finds a flag and extracts supported archives. The explicit
+`solve` form is also available:
 
 ```bash
-./jame.sh tests/files/solution.txt
-./jame.sh solve tests/files/solution.txt --format 'flag{*}'
+jame tests/files/solution.txt
+jame solve tests/files/solution.txt --format 'flag{*}'
 ```
 
 Use `*` for any-length text and `*N` for exactly `N` characters. Repeating
@@ -50,23 +55,28 @@ to require five characters, not `hcr{*****}`.
 Other available methods:
 
 ```bash
-./jame.sh update
-./jame.sh update --pre
-./jame.sh find-flag tests/files/challenge.txt --format 'hcr{*4}'
-./jame.sh scan tests/files/scan.txt
-./jame.sh crypto tests/files/strings.txt --verbose
-./jame.sh binary tests/files/strings.txt
-./jame.sh stego tests/files/strings.txt
-./jame.sh forensics tests/files/strings.txt
-./jame.sh archive path/to/archive.zip --max-depth 2
-./jame.sh file-type tests/files/strings.txt
-./jame.sh strings tests/files/strings.txt
-./jame.sh binwalk path/to/file.bin
-./jame.sh caesar 'Khoor' --shift 3
+jame update
+jame update --pre
+jame find-flag tests/files/challenge.txt --format 'hcr{*4}'
+jame scan tests/files/scan.txt
+jame crypto tests/files/strings.txt --verbose
+jame binary tests/files/strings.txt
+jame stego tests/files/strings.txt
+jame forensics tests/files/strings.txt
+jame archive path/to/archive.zip --max-depth 2
+jame file-type tests/files/strings.txt
+jame strings tests/files/strings.txt
+jame binwalk path/to/file.bin
+jame caesar 'Khoor'
+jame caesar 'Khoor' --verbose
+jame caesar 'Khoor' --shift 3
 ```
 
 `--verbose` prints the structured result, including analyzer details and raw
-output where available. `binwalk` requires the external `binwalk` utility.
+output where available. Caesar brute force prints only its highest-ranked
+decoded candidate by default; `--verbose` shows the ranked candidates.
+`jame update` upgrades JAMe and C2E; `jame update --pre` also upgrades MapRes
+using prerelease versions. `binwalk` requires the external `binwalk` utility.
 
 ## Quickstart
 
