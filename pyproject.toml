@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jame"
+version = "0.0.0"
+description = "Just Another Method of Exploitation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "JAMe Contributors" }
+]
+keywords = [
+    "forensics",
+    "triage",
+    "security",
+    "steganography",
+    "crypto",
+    "extraction",
+    "jame"
+]
+dependencies = [
+    "PyYAML>=6.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+]
+
+[project.urls]
+Homepage = "https://example.com/jame"
+Documentation = "https://example.com/jame/docs"
+Source = "https://example.com/jame"
+Issues = "https://example.com/jame/issues"
+
+[project.scripts]
+jame = "jame.cli.jame_cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["jame*"]
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+docstring-quotes = "single"
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+extend-select = ["Q", "I"]
+
+[tool.pytest.ini_options]
+addopts = "-s"
+testpaths = ["tests"]

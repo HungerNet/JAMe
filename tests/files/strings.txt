@@ -1,0 +1,2 @@
+Visible message for strings testing.
+Category analysis sample.

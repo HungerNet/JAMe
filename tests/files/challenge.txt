@@ -1,0 +1,2 @@
+Hint: hcr{abcd}; decoy: hcr{abc}.
+flag{ab-abcdef2}
